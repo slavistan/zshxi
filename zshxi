@@ -1,0 +1,78 @@
+#!/usr/bin/env zsh
+
+if [[ "$1" == -h ]] || [[ "$1" == --help ]]; then
+	cat <<EOF
+Spawn terminals with interactive zsh sessions and autorun commands. Commands
+are read from file or from stdin and are automatically added to the shell's
+history.
+
+Usage: zshxi [-c FILE] [-b] [-s] [TERMPREFIX]...
+
+    -c: Path to file containing commands. Reads from stdin by default.
+    -b: History contains a single batch command. Line-by-line by default.
+    -s: Shell only. No terminal is spawned and TERMPREFIX is ignored.
+
+    TERMPREFIX is the terminal-specific startup command-line prefix. Uses
+    Uses '\$TERMINAL -e' by default which is compatible with most terminals.
+
+See 'https://github.com/slavistan/zshxi' for more information.
+EOF
+exit
+fi
+
+# Parse command line.
+zparseopts -F -D -- c:=opt_commands b:=histbatch s=shellonly
+commands_file="${opt_commands[2]:--}"
+[[ -z "$@" ]] &&
+	term_prefix=( "$TERMINAL" "-e" ) ||
+	term_prefix=( "${@}" )
+
+# set up tempdir and create file to exchange startup instructions.
+basedir="${TMPDIR:-${XDG_RUNTIME_DIR:-/tmp}}/zshxi"
+mkdir -p "$basedir"
+tmpdir="$(mktemp -d "$basedir/zshxi.XXXXXXXXXX")"
+extra_zshrc="$tmpdir/extra.zshrc"
+
+# Build eval string depending on how the history should be created.
+# Empty lines are kept for batch mode only.
+if [[ ! "${histbatch}" ]]; then
+	history_eval='awk NF "'$extra_zshrc'" | while read line; do
+		builtin print -s "$line"
+	done'
+else
+	history_eval='builtin print -s "$(cat "'$extra_zshrc'")"'
+fi
+
+# Generate rc files depending on what kind of shell we are.
+for rc in .zshenv .zprofile .zshrc .zlogin; do
+	>$tmpdir/$rc <<<'{
+ZDOTDIR="$_zshi_zdotdir"
+if [[ -f "$ZDOTDIR/'$rc'" && -r "$ZDOTDIR/'$rc'" ]]; then
+builtin source -- "$ZDOTDIR/'$rc'"
+fi
+} always {
+if [[ -o no_rcs ||
+		-o login && "'$rc'" == .zlogin ||
+		-o no_login && "'$rc'" == .zshrc ||
+		-o no_login && -o no_interactive && '$rc' == .zshenv ]]; then
+	builtin unset _zshi_zdotdir
+	builtin source "'$extra_zshrc'"
+	'$history_eval'
+	"builtin" "command" "rm" "-rf" "--" '${(q)tmpdir}'
+else
+	_zshi_zdotdir=${ZDOTDIR:-~}
+	ZDOTDIR='${(q)tmpdir}'
+fi
+}'
+done
+
+# write commands to exchange file and run everything.
+cat "$commands_file" >"$extra_zshrc"
+if [[ "${shellonly}" ]]; then
+	_zshi_zdotdir=${ZDOTDIR:-~} ZDOTDIR=$tmpdir exec zsh
+else
+	_zshi_zdotdir=${ZDOTDIR:-~} ZDOTDIR=$tmpdir nohup ${term_prefix} zsh >/dev/null 2>&1 &!
+	( sleep 3 && rm -rf "$tmpdir" )&
+fi
+
+# TODO: Ist $TERMINAL die richtige Envvar?
