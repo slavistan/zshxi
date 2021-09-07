@@ -30,7 +30,7 @@ commands_file="${opt_commands[2]:--}"
 # set up tempdir and create file to exchange startup instructions.
 basedir="${TMPDIR:-${XDG_RUNTIME_DIR:-/tmp}}/zshxi"
 mkdir -p "$basedir"
-tmpdir="$(mktemp -d "$basedir/zshxi.XXXXXXXXXX")"
+tmpdir="${ZSHXI_TMPDIR:-$(mktemp -d "$basedir/zshxi.XXXXXXXXXX")}"
 extra_zshrc="$tmpdir/extra.zshrc"
 
 # Build eval string depending on how the history should be created.
@@ -41,6 +41,13 @@ if [[ ! "${histbatch}" ]]; then
 	done'
 else
 	history_eval='builtin print -s "$(cat "'$extra_zshrc'")"'
+fi
+
+# Build eval string to clean up tempdir. If ZSHXI_TMPDIR is defined it will be
+# used as the temporary directory and no cleanup shall be performed. Useful for
+# debugging.
+if [[ ! ${ZSHXI_TMPDIR+x} ]]; then
+	cleanup_eval="builtin command rm -rf -- '${(q)tmpdir}'"
 fi
 
 # Generate rc files depending on what kind of shell we are.
@@ -58,7 +65,7 @@ if [[ -o no_rcs ||
 	builtin unset _zshi_zdotdir
 	builtin source "'$extra_zshrc'"
 	'$history_eval'
-	"builtin" "command" "rm" "-rf" "--" '${(q)tmpdir}'
+	'$cleanup_eval'
 else
 	_zshi_zdotdir=${ZDOTDIR:-~}
 	ZDOTDIR='${(q)tmpdir}'
