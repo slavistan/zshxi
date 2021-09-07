@@ -79,7 +79,14 @@ if [[ "${shellonly}" ]]; then
 	_zshi_zdotdir=${ZDOTDIR:-~} ZDOTDIR=$tmpdir exec zsh
 else
 	_zshi_zdotdir=${ZDOTDIR:-~} ZDOTDIR=$tmpdir nohup ${term_prefix} zsh >/dev/null 2>&1 &!
-	( sleep 3 && rm -rf "$tmpdir" )&
 fi
 
 # TODO: Ist $TERMINAL die richtige Envvar?
+# MAYBE: Clean up tempdir if startup of terminal fails.
+#        Cleanup is done during zsh startup after extra.zsh has been sourced.
+#        If, however, the invocation of the terminal fails (e.g. by syntax
+#        errors) there won't be any cleanup. Try `zshxi faketerm <<<date`.
+#        Find a way to clean up the tmpdir:
+#        - without messing up the pstree
+#        - leaving the new terminal truly detached
+#        - without introducing arbitrary timers.
