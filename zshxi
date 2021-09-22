@@ -14,6 +14,19 @@ Usage: zshxi [-c FILE] [-b] [-s] [TERMPREFIX]...
 
     TERMPREFIX is the terminal-specific startup command-line prefix. Uses
     Uses '\$TERMINAL -e' by default which is compatible with most terminals.
+    Note that if \$TERMINAL is not defined, you must explicitly specify your
+    terminal.
+
+Examples:
+
+    # use \$TERMINAL envvar
+    zshxi <<< date
+
+    # use gnome-terminal
+    zshxi gnome-terminal -- <<< nvim
+
+    # use alacritty and read commands from file
+    zshxi -c /file/to/commands alacritty -e
 
 See 'https://github.com/slavistan/zshxi' for more information.
 EOF
@@ -81,7 +94,6 @@ else
 	_zshi_zdotdir=${ZDOTDIR:-~} ZDOTDIR=$tmpdir nohup ${term_prefix} zsh >/dev/null 2>&1 &!
 fi
 
-# TODO: Ist $TERMINAL die richtige Envvar?
 # MAYBE: Clean up tempdir if startup of terminal fails.
 #        Cleanup is done during zsh startup after extra.zsh has been sourced.
 #        If, however, the invocation of the terminal fails (e.g. by syntax
