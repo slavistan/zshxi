@@ -102,3 +102,4 @@ fi
 #        - without messing up the pstree
 #        - leaving the new terminal truly detached
 #        - without introducing arbitrary timers.
+# MAYBE: Create a man page.
