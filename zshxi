@@ -94,6 +94,9 @@ else
 	_zshi_zdotdir=${ZDOTDIR:-~} ZDOTDIR=$tmpdir nohup ${term_prefix} zsh >/dev/null 2>&1 &!
 fi
 
+# TODO: Emulate user inputs.
+#       The executed commands should appear in the spawned terminal as if the user had typed them.
+#       Sort of how 'set -x' works, only prettier using the user's prompt.
 # MAYBE: Clean up tempdir if startup of terminal fails.
 #        Cleanup is done during zsh startup after extra.zsh has been sourced.
 #        If, however, the invocation of the terminal fails (e.g. by syntax
@@ -102,3 +105,4 @@ fi
 #        - without messing up the pstree
 #        - leaving the new terminal truly detached
 #        - without introducing arbitrary timers.
+# MAYBE: Create a man page.
