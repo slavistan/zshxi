@@ -46,24 +46,16 @@ mkdir -p "$basedir"
 tmpdir="${ZSHXI_TMPDIR:-$(mktemp -d "$basedir/zshxi.XXXXXXXXXX")}"
 extra_zshrc="$tmpdir/extra.zshrc"
 
-# Build eval string depending on how the history should be created.
-# Empty lines are kept for batch mode only.
-if [[ ! "${histbatch}" ]]; then
-	history_eval='awk NF "'$extra_zshrc'" | while read line; do
-		builtin print -s "$line"
-	done'
-else
-	history_eval='builtin print -s "$(cat "'$extra_zshrc'")"'
-fi
-
 # Build eval string to clean up tempdir. If ZSHXI_TMPDIR is defined it will be
 # used as the temporary directory and no cleanup shall be performed. Useful for
 # debugging.
 if [[ ! ${ZSHXI_TMPDIR+x} ]]; then
-	cleanup_eval="builtin command rm -rf -- '${(q)tmpdir}'"
+	cleanup_instructions="builtin command rm -rf -- '${(q)tmpdir}'"
 fi
 
-# Generate rc files depending on what kind of shell we are.
+# Generate rc files for every kind of shell. Embed user instructions and configure
+# the DEBUG trap to add commands to history and to print them before execution.
+user_instructions="$(cat "$commands_file")"
 for rc in .zshenv .zprofile .zshrc .zlogin; do
 	>$tmpdir/$rc <<<'{
 ZDOTDIR="$_zshi_zdotdir"
@@ -74,11 +66,17 @@ fi
 if [[ -o no_rcs ||
 		-o login && "'$rc'" == .zlogin ||
 		-o no_login && "'$rc'" == .zshrc ||
-		-o no_login && -o no_interactive && '$rc' == .zshenv ]]; then
+		-o no_login && -o no_interactive && "'$rc'" == .zshenv ]]; then
 	builtin unset _zshi_zdotdir
-	builtin source "'$extra_zshrc'"
-	'$history_eval'
-	'$cleanup_eval'
+	TRAPDEBUG() {
+		if [[ "$ZSH_DEBUG_CMD" != "trap - DEBUG" ]]; then
+			print -rP -- "${PS1}$ZSH_DEBUG_CMD"
+			print -rs -- "$ZSH_DEBUG_CMD"
+		fi
+	}
+	'"$user_instructions"'
+	trap - DEBUG
+	'$cleanup_instructions'
 else
 	_zshi_zdotdir=${ZDOTDIR:-~}
 	ZDOTDIR='${(q)tmpdir}'
@@ -86,17 +84,12 @@ fi
 }'
 done
 
-# write commands to exchange file and run everything.
-cat "$commands_file" >"$extra_zshrc"
 if [[ "${shellonly}" ]]; then
 	_zshi_zdotdir=${ZDOTDIR:-~} ZDOTDIR=$tmpdir exec zsh
 else
 	_zshi_zdotdir=${ZDOTDIR:-~} ZDOTDIR=$tmpdir nohup ${term_prefix} zsh >/dev/null 2>&1 &!
 fi
 
-# TODO: Emulate user inputs.
-#       The executed commands should appear in the spawned terminal as if the user had typed them.
-#       Sort of how 'set -x' works, only prettier using the user's prompt.
 # MAYBE: Clean up tempdir if startup of terminal fails.
 #        Cleanup is done during zsh startup after extra.zsh has been sourced.
 #        If, however, the invocation of the terminal fails (e.g. by syntax
@@ -105,4 +98,16 @@ fi
 #        - without messing up the pstree
 #        - leaving the new terminal truly detached
 #        - without introducing arbitrary timers.
+
 # MAYBE: Create a man page.
+
+# FIXME: SIGINT during execution of user instructions messes up everything.
+#        Try
+#
+#            zshxi <<EOF
+#            date
+#            sleep 2
+#            date
+#            EOF
+#
+#        and during the sleep press Ctrl-c.
