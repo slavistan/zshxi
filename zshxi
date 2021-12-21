@@ -1,16 +1,16 @@
 #!/usr/bin/env zsh
 
+set -e
+
 if [[ "$1" == -h ]] || [[ "$1" == --help ]]; then
 	cat <<EOF
 Spawn terminals with interactive zsh sessions and autorun commands. Commands
 are read from file or from stdin and are automatically added to the shell's
 history.
 
-Usage: zshxi [-c FILE] [-b] [-s] [TERMPREFIX]...
+Usage: zshxi [-c FILE] [TERMPREFIX]...
 
     -c: Path to file containing commands. Reads from stdin by default.
-    -b: History contains a single batch command. Line-by-line by default.
-    -s: Shell only. No terminal is spawned and TERMPREFIX is ignored.
 
     TERMPREFIX is the terminal-specific startup command-line prefix. Uses
     Uses '\$TERMINAL -e' by default which is compatible with most terminals.
@@ -34,30 +34,56 @@ exit
 fi
 
 # Parse command line.
-zparseopts -F -D -- c:=opt_commands b:=histbatch s=shellonly
+zparseopts -F -D -- c:=opt_commands
 commands_file="${opt_commands[2]:--}"
-[[ -z "$@" ]] &&
-	term_prefix=( "$TERMINAL" "-e" ) ||
+if [[ -z "$@" ]]; then
+	if [[ -z "$TERMINAL" ]]; then
+		echo "\$TERMINAL is undefined and no TERMPREFIX was provided. Abort." >&2
+		exit 1
+	fi
+	term_prefix=( "$TERMINAL" "-e" )
+else
 	term_prefix=( "${@}" )
-
-# set up tempdir and create file to exchange startup instructions.
-basedir="${TMPDIR:-${XDG_RUNTIME_DIR:-/tmp}}/zshxi"
-mkdir -p "$basedir"
-tmpdir="${ZSHXI_TMPDIR:-$(mktemp -d "$basedir/zshxi.XXXXXXXXXX")}"
-extra_zshrc="$tmpdir/extra.zshrc"
-
-# Build eval string to clean up tempdir. If ZSHXI_TMPDIR is defined it will be
-# used as the temporary directory and no cleanup shall be performed. Useful for
-# debugging.
-if [[ ! ${ZSHXI_TMPDIR+x} ]]; then
-	cleanup_instructions="builtin command rm -rf -- '${(q)tmpdir}'"
 fi
 
-# Generate rc files for every kind of shell. Embed user instructions and configure
-# the DEBUG trap to add commands to history and to print them before execution.
+# Perform a basic sanity check of the terminal startup command.
+if [[ ! -x "$(command -v "${term_prefix[1]}")" ]]; then
+	echo "'${term_prefix[1]}' is not in \$PATH or is not executable. Abort." >&2
+	exit 1
+fi
+
+# Set up tmpdir and define cleanup instructions. Cleanup is performed at the
+# very end, after shell initialization and execution of the user instructions
+# has finished. If defined, ZSHXI_TMPDIR will be used as the temporary
+# directory and cleanup will be skipped. Use this for debugging to preserve all
+# auxilliary files. ZSHXI_TMPDIR will be created, if it doesn't exist.
+if [[ -z "$ZSHXI_TMPDIR" ]]; then
+	basedir="${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/zshxi"
+	mkdir -p "$basedir"
+	tmpdir="$(mktemp -d "$basedir/zshxi.XXXXXXXXXX")"
+	cleanup_instructions="builtin command rm -rf -- '${(q)tmpdir}'"
+else
+	tmpdir="$(realpath "$ZSHXI_TMPDIR")"
+	mkdir -p "$ZSHXI_TMPDIR"
+	cleanup_instructions=
+fi
+
+# Clean up if zshxi is terminated prematurely.
+cleanup() {
+	rm -r "${(q)tmpdir}"
+	exit "${1:-0}"
+}
+trap cleanup INT HUP QUIT TERM
+
+# Capture user instructions to be executed after regular shell initialization.
+# We make use of cat's sugar of reading from stdin when the input file is '-'.
 user_instructions="$(cat "$commands_file")"
+
+# Generate rc files for every kind of shell. Embed user instructions and
+# configure the DEBUG trap to add commands to history and to print them before
+# execution.
 for rc in .zshenv .zprofile .zshrc .zlogin; do
-	>$tmpdir/$rc <<<'{
+	>"$tmpdir/$rc" <<<'{
 ZDOTDIR="$_zshi_zdotdir"
 if [[ -f "$ZDOTDIR/'$rc'" && -r "$ZDOTDIR/'$rc'" ]]; then
 builtin source -- "$ZDOTDIR/'$rc'"
@@ -74,7 +100,7 @@ if [[ -o no_rcs ||
 			print -rs -- "$ZSH_DEBUG_CMD"
 		fi
 	}
-	'"$user_instructions"'
+	'$user_instructions'
 	trap - DEBUG
 	'$cleanup_instructions'
 else
@@ -84,30 +110,5 @@ fi
 }'
 done
 
-if [[ "${shellonly}" ]]; then
-	_zshi_zdotdir=${ZDOTDIR:-~} ZDOTDIR=$tmpdir exec zsh
-else
-	_zshi_zdotdir=${ZDOTDIR:-~} ZDOTDIR=$tmpdir nohup ${term_prefix} zsh >/dev/null 2>&1 &!
-fi
+_zshi_zdotdir="${ZDOTDIR:-~}" ZDOTDIR="$tmpdir" nohup ${term_prefix} zsh >/dev/null 2>&1 &!
 
-# MAYBE: Clean up tempdir if startup of terminal fails.
-#        Cleanup is done during zsh startup after extra.zsh has been sourced.
-#        If, however, the invocation of the terminal fails (e.g. by syntax
-#        errors) there won't be any cleanup. Try `zshxi faketerm <<<date`.
-#        Find a way to clean up the tmpdir:
-#        - without messing up the pstree
-#        - leaving the new terminal truly detached
-#        - without introducing arbitrary timers.
-
-# MAYBE: Create a man page.
-
-# FIXME: SIGINT during execution of user instructions messes up everything.
-#        Try
-#
-#            zshxi <<EOF
-#            date
-#            sleep 2
-#            date
-#            EOF
-#
-#        and during the sleep press Ctrl-c.
