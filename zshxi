@@ -94,6 +94,10 @@ if [[ -o no_rcs ||
 		-o no_login && "'$rc'" == .zshrc ||
 		-o no_login && -o no_interactive && "'$rc'" == .zshenv ]]; then
 	builtin unset _zshi_zdotdir
+	cleanup() {
+		'$cleanup_instructions'
+	}
+	trap cleanup INT HUP QUIT TERM
 	TRAPDEBUG() {
 		if [[ "$ZSH_DEBUG_CMD" != "trap - DEBUG" ]]; then
 			print -rP -- "${PS1}$ZSH_DEBUG_CMD"
@@ -102,7 +106,7 @@ if [[ -o no_rcs ||
 	}
 	'$user_instructions'
 	trap - DEBUG
-	'$cleanup_instructions'
+	cleanup
 else
 	_zshi_zdotdir=${ZDOTDIR:-~}
 	ZDOTDIR='${(q)tmpdir}'
