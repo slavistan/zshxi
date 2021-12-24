@@ -114,5 +114,4 @@ fi
 }'
 done
 
-_zshi_zdotdir="${ZDOTDIR:-~}" ZDOTDIR="$tmpdir" nohup ${term_prefix} zsh >/dev/null 2>&1 &!
-
+_zshi_zdotdir="${ZDOTDIR:-~}" ZDOTDIR="$tmpdir" ${term_prefix} zsh >/dev/null 2>&1 &
