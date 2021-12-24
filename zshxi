@@ -26,7 +26,7 @@ Examples:
     zshxi gnome-terminal -- <<< nvim
 
     # use alacritty and read commands from file
-    zshxi -c /file/to/commands alacritty -e
+    zshxi -c /file/containing/commands alacritty -e
 
 See 'https://github.com/slavistan/zshxi' for more information.
 EOF
