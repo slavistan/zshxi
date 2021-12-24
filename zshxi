@@ -115,3 +115,9 @@ fi
 done
 
 _zshi_zdotdir="${ZDOTDIR:-~}" ZDOTDIR="$tmpdir" ${term_prefix} zsh >/dev/null 2>&1 &
+# WONTFIX: Cleanup is not performed if terminal startup fails
+#          If zsh is not run in a terminal no cleanup is triggered. Try
+#            zshxi date <<<"echo hi"
+#          and notice the auxilliary files not being deleted. This cannot be
+#          fixed without either messing up the process tree by adding watcher
+#          processes or by introducing arbitrary timers.
