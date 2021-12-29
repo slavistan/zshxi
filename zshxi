@@ -89,7 +89,7 @@ source "$ZDOTDIR/'$rc'";
 unset _zshi_zdotdir
 zshxi_cleanup() {
 	'$cleanup_instructions'
-	trap - INT HUP QUIT TERM DEBUG ERR
+	trap - INT HUP QUIT TERM
 	unfunction zshxi_cleanup
 }
 trap zshxi_cleanup INT HUP QUIT TERM
