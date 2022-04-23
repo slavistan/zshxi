@@ -121,3 +121,8 @@ _zshi_zdotdir="${ZDOTDIR:-~}" ZDOTDIR="$tmpdir" ${term_prefix} zsh >/dev/null 2>
 #          and notice the auxilliary files not being deleted. This cannot be
 #          fixed without either messing up the process tree by adding watcher
 #          processes or by introducing arbitrary timers.
+
+# TODO: README.md (copy from zsh-xi rep)
+# TODO: License
+# TODO: Delete zsh-xi repo
+# TODO: AUR
