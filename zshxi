@@ -100,8 +100,8 @@ if [[ -o no_rcs ||
 	trap cleanup INT HUP QUIT TERM
 	TRAPDEBUG() {
 		if [[ "$ZSH_DEBUG_CMD" != "trap - DEBUG" ]]; then
-			print -rP -- "${PS1}$ZSH_DEBUG_CMD"
-			print -rs -- "$ZSH_DEBUG_CMD"
+			#print -rP -- "${PS1}$ZSH_DEBUG_CMD"
+			#print -rs -- "$ZSH_DEBUG_CMD"
 		fi
 	}
 	'$user_instructions'
@@ -113,6 +113,12 @@ else
 fi
 }'
 done
+
+# FIXME: zshxi clashes with the chpwd handlers (e.g. autoenv.zsh). Clutters the
+#        history with the chpwd handler's instructions. We should only add the
+#        user instructions to the history. Can TRAPDEBUG be put inside
+#        $user_instructions?
+#        Disabled modifying the command history and printing the commands.
 
 _zshi_zdotdir="${ZDOTDIR:-~}" ZDOTDIR="$tmpdir" ${term_prefix} zsh >/dev/null 2>&1 &
 # WONTFIX: Cleanup is not performed if terminal startup fails
